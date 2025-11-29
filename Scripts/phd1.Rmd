@@ -1,0 +1,1341 @@
+---
+title: "Chinese PhDs in the United States, Europe, and United Kingdom (1905-1962)"
+subtitle: "Episode 1: Mapping the Dissertations"
+author: "Cécile Armand, Christian Henriot"
+date: "`r lubridate::today()`"
+tags: [biography, catalog, doctoral dissertation, correspondance analysis, geographical information system, text analysis, topic modeling, semantic network, named entity recognition]  
+abstract: |
+  This document is part of a series of three scripts developed to support a comprehensive study of early Chinese PhDs from 1905 to 1962. The study is based on a dataset derived from three catalogs of Chinese doctoral dissertations compiled by the librarian and bibliographer Yuan Tongli 袁同禮 (1895–1965), which cover the United States (1905–1960), the United Kingdom (1916–1961), and Continental Europe (1905–1962).The first script examines the dissertations themselves, while the second and third analyze the authors’ backgrounds and their post-graduation trajectories.    
+  
+  <style>
+    body {
+    text-align: justify}
+  </style>
+    
+
+output: 
+  html_document:
+    toc: true
+    toc_float: 
+      collapsed: false
+      smooth_scroll: false
+    toc_depth: 3
+    number_sections: false
+    code_folding: show # hide
+    fig_caption: true
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(readr)
+library(tidyverse)
+library(hrbrthemes)
+library(viridis)
+library(FactoMineR)
+library(Factoshiny)
+library(networkD3)
+library(BTM)
+library(textplot)
+library(ggraph)
+library(concaveman)
+library(histtext)
+
+```
+
+```{r warning = FALSE, message = FALSE}
+
+# load packages
+
+library(readr)
+library(tidyverse)
+library(hrbrthemes)
+library(viridis)
+library(FactoMineR)
+library(Factoshiny)
+library(networkD3)
+library(BTM)
+library(histtext)
+
+```
+
+```{r echo = FALSE}
+
+load(file = "phd1.RData")
+
+```
+
+# Introduction
+
+This document is part of a series of three scripts developed to support a comprehensive study of early Chinese PhDs from 1905 to 1962. It is based on the three catalogs of Chinese doctoral dissertations compiled by the librarian and bibliographer Yuan Tongli 袁同禮 (1895–1965), covering the United States (1905–1960), the United Kingdom (1916–1961), and Continental Europe (1905–1962). These scripts provide the complete data and code underlying our analysis and narrative—material that could not be included in the final published work—to ensure transparency and enable rigorous traceability of our methods for interested readers.
+
+The documentation series follows the general structure of the paper and includes:
+
+1.  **Script 1 analyzes the dissertations themselves**, examining their temporal and geographical distribution, disciplinary majors, host institutions, and research topics. This analysis is based exclusively on the original dissertation catalog.
+2.  **Script 2 focuses on the authors—the Chinese PhDs** who produced these dissertations—exploring their backgrounds using additional external data compiled by the Lee-Campbell Research Group.
+3.  **Script 3 investigates the post-graduation trajectories** of these PhDs, particularly their experiences following the 1949 Communist Revolution. This analysis leverages biographical entries available in online sources such as Wikipedia and Baidu.
+
+As illustrated by the figure and table below, we lost a significant number of individuals when incorporating external sources, resulting in a reduced sample size compared to our initial population. Nonetheless, the integration of qualitative biographical information enables us to draw more nuanced and in-depth insights into the life experiences of a substantial subset of PhDs. This approach ultimately supports robust empirical conclusions grounded in rich, contextual data.
+
+::: {style="display: flex; justify-content: center;"}
+```{=html}
+<style type="text/css">
+    .tg  {border-collapse:collapse;border-color:#93a1a1;border-spacing:0;}
+    .tg td{background-color:#fdf6e3;border-color:#93a1a1;border-style:solid;border-width:1px;color:#002b36;
+      font-family:Arial, sans-serif;font-size:14px;overflow:hidden;padding:0px 19px;word-break:normal;}
+    .tg th{background-color:#657b83;border-color:#93a1a1;border-style:solid;border-width:1px;color:#fdf6e3;
+      font-family:Arial, sans-serif;font-size:14px;font-weight:normal;overflow:hidden;padding:0px 19px;word-break:normal;}
+    .tg .tg-ezbu{background-color:#eee8d5;border-color:inherit;text-align:center;vertical-align:top}
+    .tg .tg-c3ow{border-color:inherit;text-align:center;vertical-align:top}
+    .tg .tg-fymr{border-color:inherit;font-weight:bold;text-align:left;vertical-align:top}
+    .tg .tg-7btt{border-color:inherit;font-weight:bold;text-align:center;vertical-align:top}
+  </style>
+```
+
++--------+--------------------+-------+--------------------------+-------+
+|        | \                  | \     | \                        | \     |
+|        | Matched in CUSD-OS | (%)   | Found in Baidu/Wikipedia | (%)   |
++========+====================+=======+==========================+=======+
+| \      | \                  | \     | \                        | \     |
+| USA    | 2,315              | 83.4% | 681                      | 24.5% |
++--------+--------------------+-------+--------------------------+-------+
+| \      | \                  | \     | \                        | \     |
+| Europe | 1,113              | 71.3% | 268                      | 17.2% |
++--------+--------------------+-------+--------------------------+-------+
+| \      | \                  | \     | \                        | \     |
+| UK     | 288                | 83.2% | 130                      | 37.6% |
++--------+--------------------+-------+--------------------------+-------+
+| \      | \                  | \     | \                        | \     |
+| Total  | 3,716              | 79.4% | 1,079                    | 23.0% |
++--------+--------------------+-------+--------------------------+-------+
+:::
+
+<br>
+
+![The Early Chinese PhD Population Through Concentric Circles of Documentation](phdcircles.png)
+
+# Dataset
+
+The dataset **phd_all_master** is a compilation of the three lists of doctors from the U.S., U.K. and Europe:
+
+```{r warning = FALSE, message = FALSE, eval = FALSE}
+
+library(readr)
+phd_all_master <- read_delim("Data/phd_all_master.csv", 
+    delim = ";", escape_double = FALSE, trim_ws = TRUE)
+
+```
+
+```{r warning = FALSE, message = FALSE}
+
+phd_all_master
+names(phd_all_master)
+
+```
+
+The dataset contains 4,717 unique dissertations (rows) and 28 attributes on these dissertations and their authors, including
+
+-   the various identifiers: unique individual (doctor) (ID), source ID (Srce_ID)
+-   biographical information on doctors: names, gender, year of birth, year of death
+-   information on dissertations: information: age at graduation, region and country of graduation, university of graduation, discipline of graduation, year of graduation, title of dissertation (as in source, and translated)
+-   spatial data: city of university, geographical coordinates
+
+# Geographical Distribution
+
+Geographical distribution of PhDs by world region and by country:
+
+```{r warning = FALSE, message = FALSE}
+
+phd_all_master %>% group_by(Region) %>% count(sort = TRUE)
+phd_all_master %>% group_by(Country) %>% count(sort = TRUE)
+
+```
+
+# Timeline
+
+When did they graduate?
+
+```{r warning = FALSE, message = FALSE}
+
+phd_all_master %>% drop_na(Degree_Year) %>% 
+  ggplot( aes(x=Degree_Year)) +
+  geom_histogram( binwidth=1, fill="#69b3a2", color="#e9ecef", alpha=0.9) +
+  ggtitle("Bin size = 1") +
+  theme_ipsum() +
+  theme(
+    plot.title = element_text(size=15)
+  ) +
+  labs(title = "Chinese PhDs Abroad (1905-1962)",
+       subtitle = "Year of Graduation",
+       x = "Year",
+       y = "Frequency", 
+       caption = "Source: Yuan T'ung-li's Guides to Doctoral Dissertations (1961, 1962, 1964)")
+
+```
+
+## By Region
+
+```{r warning = FALSE, message = FALSE}
+
+phd_all_master %>% 
+  group_by(Region, Degree_Year) %>% 
+  count() %>% 
+  ggplot( aes(x=Degree_Year, y=n, group=Region, fill=Region)) +
+  geom_area() +
+  scale_fill_viridis(discrete = TRUE) +
+  theme(legend.position="none") +
+  labs(title = "Chinese PhDs Abroad (1905-1964)",
+       subtitle = "Year of Graduation",
+       x = "Year ",
+       y = "Frequency", 
+       caption = "Source: Yuan T'ung-li's Guides to Doctoral Dissertations (1961, 1962, 1964)") +
+  theme_ipsum() +
+  theme(
+    legend.position="none",
+    panel.spacing = unit(0, "lines"),
+    strip.text.x = element_text(size = 8),
+    plot.title = element_text(size=13)
+  ) +
+  facet_wrap(~Region, ncol = 1)
+
+```
+
+## Periodization
+
+```{r warning = FALSE, message = FALSE}
+
+phd_all_master %>% group_by(Degree_Period) %>% count(sort = TRUE) # taking the Nationalist takeover as a cut-off
+phd_all_master %>% group_by(Degree_Period2) %>% count(sort = TRUE) # taking end of WWI as a cut-off
+
+```
+
+# Universities
+
+From which university did they graduate?
+
+Distribution by institution, as well as distribution of institutions by region, country, and period of graduation:
+
+```{r warning = FALSE, message = FALSE}
+
+phd_all_master %>% group_by(University) %>% count(sort = TRUE)
+phd_all_master %>% group_by(Region, University) %>% count(sort = TRUE) # by region
+phd_all_master %>% group_by(Country, University) %>% count(sort = TRUE) # by country
+phd_all_master %>% group_by(Degree_Period, University) %>% count() %>% arrange(Degree_Period, desc(n)) # by period
+
+```
+
+# Cities (GIS)
+
+```{r warning = FALSE, message = FALSE}
+
+library(leaflet)
+
+map_all <- phd_all_master %>% group_by(City, Lat, Long) %>% 
+  count() %>%
+  leaflet() %>%
+  addTiles() %>%
+  addCircleMarkers( radius = ~log(n)*3,
+                    label = ~City,
+                    color = "white",
+                    weight = 1,
+                    opacity = 0.6,
+                    fill = TRUE,
+                    fillColor = "red",
+                    fillOpacity = 0.9,
+                    stroke = TRUE,
+                    popup = ~paste( "City:", City ,
+                                    "",
+                                    "Chinese PhDs, 1905-1962", n))
+
+# add legend 
+
+legend_html <- "
+<div style='background-color: white; padding: 10px;'>
+  <h4>Chinese PhDs, 1905-1962</h4>
+  <div style='display: flex; align-items: center;'>
+    <div style='background-color: red; width: 20px; height: 20px; border-radius: 50%; margin-right: 5px;'></div>
+    <span>10</span>
+  </div>
+  <div style='display: flex; align-items: center;'>
+    <div style='background-color: red; width: 25px; height: 25px; border-radius: 50%; margin-right: 5px;'></div>
+    <span>20</span>
+  </div>
+  <div style='display: flex; align-items: center;'>
+    <div style='background-color: red; width: 30px; height: 30px; border-radius: 50%; margin-right: 5px;'></div>
+    <span>50</span>
+  </div>
+  <div style='display: flex; align-items: center;'>
+    <div style='background-color: red; width: 35px; height: 35px; border-radius: 50%; margin-right: 5px;'></div>
+    <span>100</span>
+  </div>
+</div>
+"
+
+# Add the custom legend to the map
+map_all %>% 
+  addControl(html = legend_html, position = "bottomright")
+
+```
+
+### 1905-1926
+
+```{r warning = FALSE, message = FALSE}
+
+map1 <- phd_all_master %>% 
+  filter(Degree_Period == "1905-1926") %>% 
+  group_by(City, Lat, Long) %>% 
+  count() %>%
+  leaflet() %>%
+  addTiles() %>%
+  addCircleMarkers( radius = ~log(n)*3,
+                    label = ~City,
+                    color = "white",
+                    weight = 1,
+                    opacity = 0.6,
+                    fill = TRUE,
+                    fillColor = "orange",
+                    fillOpacity = 0.9,
+                    stroke = TRUE,
+                    popup = ~paste( "City:", City ,
+                                    "<br>",
+                                    "Chinese PhDs, 1905-1926:", n)) 
+
+
+legend1 <- "
+<div style='background-color: white; padding: 10px;'>
+  <h4>Chinese PhDs, 1905-1926</h4>
+  <div style='display: flex; align-items: center;'>
+    <div style='background-color: orange; width: 20px; height: 20px; border-radius: 50%; margin-right: 5px;'></div>
+    <span>10</span>
+  </div>
+  <div style='display: flex; align-items: center;'>
+    <div style='background-color: orange; width: 25px; height: 25px; border-radius: 50%; margin-right: 5px;'></div>
+    <span>20</span>
+  </div>
+  <div style='display: flex; align-items: center;'>
+    <div style='background-color: orange; width: 30px; height: 30px; border-radius: 50%; margin-right: 5px;'></div>
+    <span>50</span>
+  </div>
+  <div style='display: flex; align-items: center;'>
+    <div style='background-color: orange; width: 35px; height: 35px; border-radius: 50%; margin-right: 5px;'></div>
+    <span>100</span>
+  </div>
+</div>
+"
+
+# Add the custom legend to the map
+map1 %>% 
+  addControl(html = legend1, position = "bottomright")
+
+```
+
+### 1927-1937
+
+```{r warning = FALSE, message = FALSE}
+
+map2 <- phd_all_master %>% 
+  filter(Degree_Period == "1927-1937") %>% 
+  group_by(City, Lat, Long) %>% 
+  count() %>%
+  leaflet() %>%
+  addTiles() %>%
+  addCircleMarkers( radius = ~log(n)*3,
+                    label = ~City,
+                    color = "white",
+                    weight = 1,
+                    opacity = 0.6,
+                    fill = TRUE,
+                    fillColor = "blue",
+                    fillOpacity = 0.9,
+                    stroke = TRUE,
+                    popup = ~paste( "City:", City ,
+                                    "",
+                                    "Chinese PhDs, 1927-1937", n)) 
+
+
+legend2 <- "
+<div style='background-color: white; padding: 10px;'>
+  <h4>Chinese PhDs, 1927-1937</h4>
+  <div style='display: flex; align-items: center;'>
+    <div style='background-color: blue; width: 20px; height: 20px; border-radius: 50%; margin-right: 5px;'></div>
+    <span>10</span>
+  </div>
+  <div style='display: flex; align-items: center;'>
+    <div style='background-color: blue; width: 25px; height: 25px; border-radius: 50%; margin-right: 5px;'></div>
+    <span>20</span>
+  </div>
+  <div style='display: flex; align-items: center;'>
+    <div style='background-color: blue; width: 30px; height: 30px; border-radius: 50%; margin-right: 5px;'></div>
+    <span>50</span>
+  </div>
+  <div style='display: flex; align-items: center;'>
+    <div style='background-color: blue; width: 35px; height: 35px; border-radius: 50%; margin-right: 5px;'></div>
+    <span>100</span>
+  </div>
+</div>
+"
+
+# Add the custom legend to the map
+map2 %>% 
+  addControl(html = legend2, position = "bottomright")
+
+```
+
+### 1938-1951
+
+```{r warning = FALSE, message = FALSE}
+
+map3 <- phd_all_master %>% 
+  filter(Degree_Period == "1938-1951") %>% 
+  group_by(City, Lat, Long) %>% 
+  count() %>%
+  leaflet() %>%
+  addTiles() %>%
+  addCircleMarkers( radius = ~log(n)*3,
+                    label = ~City,
+                    color = "white",
+                    weight = 1,
+                    opacity = 0.6,
+                    fill = TRUE,
+                    fillColor = "darkgreen",
+                    fillOpacity = 0.9,
+                    stroke = TRUE,
+                    popup = ~paste( "City:", City ,
+                                    "",
+                                    "Chinese PhDs, 1938-1951", n)) 
+
+
+legend3 <- "
+<div style='background-color: white; padding: 10px;'>
+  <h4>Chinese PhDs, 1938-1951</h4>
+  <div style='display: flex; align-items: center;'>
+    <div style='background-color: darkgreen; width: 20px; height: 20px; border-radius: 50%; margin-right: 5px;'></div>
+    <span>10</span>
+  </div>
+  <div style='display: flex; align-items: center;'>
+    <div style='background-color: darkgreen; width: 25px; height: 25px; border-radius: 50%; margin-right: 5px;'></div>
+    <span>20</span>
+  </div>
+  <div style='display: flex; align-items: center;'>
+    <div style='background-color: darkgreen; width: 30px; height: 30px; border-radius: 50%; margin-right: 5px;'></div>
+    <span>50</span>
+  </div>
+  <div style='display: flex; align-items: center;'>
+    <div style='background-color: darkgreen; width: 35px; height: 35px; border-radius: 50%; margin-right: 5px;'></div>
+    <span>100</span>
+  </div>
+</div>
+"
+
+# Add the custom legend to the map
+map3 %>% 
+  addControl(html = legend3, position = "bottomright")
+
+```
+
+### 1952-1962
+
+```{r warning = FALSE, message = FALSE}
+
+map4 <- phd_all_master %>% 
+  filter(Degree_Period == "1952-1962") %>% 
+  group_by(City, Lat, Long) %>% 
+  count() %>%
+  leaflet() %>%
+  addTiles() %>%
+  addCircleMarkers( radius = ~log(n)*3,
+                    label = ~City,
+                    color = "white",
+                    weight = 1,
+                    opacity = 0.6,
+                    fill = TRUE,
+                    fillColor = "purple",
+                    fillOpacity = 0.9,
+                    stroke = TRUE,
+                    popup = ~paste( "City:", City ,
+                                    "",
+                                    "Chinese PhDs, 1952-1962", n)) 
+
+
+legend4 <- "
+<div style='background-color: white; padding: 10px;'>
+  <h4>Chinese PhDs, 1952-1962</h4>
+  <div style='display: flex; align-items: center;'>
+    <div style='background-color: purple; width: 20px; height: 20px; border-radius: 50%; margin-right: 5px;'></div>
+    <span>10</span>
+  </div>
+  <div style='display: flex; align-items: center;'>
+    <div style='background-color: purple; width: 25px; height: 25px; border-radius: 50%; margin-right: 5px;'></div>
+    <span>20</span>
+  </div>
+  <div style='display: flex; align-items: center;'>
+    <div style='background-color: purple; width: 30px; height: 30px; border-radius: 50%; margin-right: 5px;'></div>
+    <span>50</span>
+  </div>
+  <div style='display: flex; align-items: center;'>
+    <div style='background-color: purple; width: 35px; height: 35px; border-radius: 50%; margin-right: 5px;'></div>
+    <span>100</span>
+  </div>
+</div>
+"
+
+# Add the custom legend to the map
+map4 %>% 
+  addControl(html = legend4, position = "bottomright")
+
+```
+
+# Disciplines
+
+```{r warning = FALSE, message = FALSE}
+
+# all regions included 
+phd_all_master %>% group_by(Field) %>% count(sort = TRUE)
+phd_all_master %>% group_by(Discipline) %>% count(sort = TRUE)
+
+# by regions  
+
+phd_all_master %>% group_by(Region) %>% count(Field) %>% arrange(Region, desc(n))
+phd_all_master %>% group_by(Region) %>% count(Discipline) %>% arrange(Region, desc(n))
+
+# by periods  
+
+phd_all_master %>% group_by(Degree_Period) %>% count(Field) %>% arrange(Degree_Period, desc(n))
+phd_all_master %>% group_by(Degree_Period) %>% count(Discipline) %>% arrange(Degree_Period, desc(n))
+
+```
+
+# Correspondence Analyses
+
+## Region and Field (CA)
+
+```{r warning=FALSE, message = FALSE}
+
+region_field <- phd_all_master %>% 
+  drop_na(Field) %>%
+  select(Field, Region) %>% 
+  group_by(Region, Field) %>% 
+  tally() %>% 
+  spread(key = Field, value = n) 
+
+# read first column as row names
+
+region_field <- column_to_rownames(region_field, var = "Region") 
+
+# replace NA values with 0
+
+region_field <- mutate_all(region_field, ~replace(., is.na(.), 0))
+
+# load packages for CA
+
+library(FactoMineR)
+
+res.ca1<-CA(region_field,graph=FALSE)
+plot.CA(res.ca1,cex=0.9,cex.main=0.9,cex.axis=0.9,title="Chinese PhDs: Region and Field of Study")
+
+```
+
+## Country and Discipline (CA)
+
+```{r warning=FALSE, message = FALSE}
+
+country_disc <- phd_all_master %>% 
+  drop_na(Discipline) %>%
+  select(Discipline, Country) %>% 
+  group_by(Country, Discipline) %>% 
+  tally() %>% 
+  spread(key = Discipline, value = n) 
+
+# read first column as row names
+
+country_disc <- column_to_rownames(country_disc, var = "Country") 
+
+# replace NA values with 0
+
+country_disc <- mutate_all(country_disc, ~replace(., is.na(.), 0))
+
+# load packages for CA
+
+library(factoextra)
+
+res.ca2<-CA(country_disc,graph=FALSE)
+
+# Get the contributions of the columns (disciplines)
+col_contrib <- get_ca_col(res.ca2)$contrib
+
+
+# For example, highlight the top 5 contributing disciplines
+top_disciplines <- names(sort(col_contrib[,1], decreasing = TRUE))[1:15]
+
+fviz_ca_biplot(res.ca2, 
+               repel = TRUE, 
+               title = "Chinese PhDs: Country and Discipline",
+               cex = 0.5, 
+               cex.main = 0.8, 
+               cex.axis = 1,
+               col.row = "blue",               # Set country labels and dots to blue
+               col.col = "red",              # Set discipline labels and dots to red
+               pointsize.col = col_contrib[,1]/max(col_contrib[,1]) * 5,  # Scale discipline dot sizes
+               label = "all",                  # Show labels for both rows and columns
+               select.col = list(name = top_disciplines))  # Limit discipline labels to top contributors)
+
+```
+
+## Region, Period, Field (MCA)
+
+```{r warning=FALSE, message = FALSE}
+
+mca_field_period <- phd_all_master %>% distinct(RID, Region, Degree_Period2, Field) %>% drop_na(RID, Region, Degree_Period2, Field) %>% rename(Period = Degree_Period2)
+mca_field_period <- column_to_rownames(mca_field_period, "RID")
+
+res.MCA<-MCA(mca_field_period,graph=FALSE)
+plot.MCA(res.MCA, choix='var',title="Variables Plot",col.var=c(1,2,3))
+
+# Create the MCA plot
+mca_plot <- fviz_mca_var(res.MCA,
+                         col.var = c("black", "black", "black", "red", "red", "red", "red", "red", 
+                                     "lightgreen", "lightgreen", "lightgreen", "lightgreen", "lightgreen", "lightgreen"),  # Updated colors
+                         repel = TRUE,   # Avoid overlapping labels
+                         title = "Chinese PhDs: Region, Field, and Graduation Period",  # Title
+                         label = "var")  # Show only variable labels
+
+# Customize the legend using ggplot2
+mca_plot + 
+  scale_color_manual(
+    values = c("black" = "black", "lightgreen" = "lightgreen", "red" = "red"),  # Map colors
+    labels = c("Region", "Field", "Period")  # Custom legend labels
+  ) +
+  guides(color = guide_legend(title = "Variables")) 
+
+```
+
+```{r warning=FALSE, message = FALSE, eval=FALSE}
+
+library(explor)
+
+explor(res.MCA)
+
+res <- explor::prepare_results(res.MCA)
+explor::MCA_var_plot(res, xax = 1, yax = 2, var_sup = FALSE, var_sup_choice = ,
+                     var_lab_min_contrib = 0, col_var = "Variable", symbol_var = NULL, size_var = "Cos2",
+                     size_range = c(52.5, 700), labels_size = 10, point_size = 56, transitions = TRUE,
+                     labels_positions = NULL, labels_prepend_var = FALSE, xlim = c(-2.7, 2.53),
+                     ylim = c(-2.04, 3.19))
+
+```
+
+## Region, Period, Discipline
+
+```{r warning=FALSE, message = FALSE}
+
+mca_disc_period <- phd_all_master %>% distinct(RID, Region, Degree_Period2, Discipline) %>% drop_na(RID, Region, Degree_Period2, Discipline) %>% rename(Period = Degree_Period2)
+mca_disc_period <- column_to_rownames(mca_disc_period, "RID")
+
+res.MCA2<-MCA(mca_disc_period,graph=FALSE)
+plot.MCA(res.MCA2, choix='var',title="Variables Plot",col.var=c(1,2,3))
+
+res <- explor::prepare_results(res.MCA2)
+
+
+```
+
+
+# Research Topics
+
+```{r warning=FALSE, message = FALSE}
+
+# filter theses in the Humanities and Social Sciences (1620)
+
+phd_shs <- phd_all_master %>% filter(Field == "Humanities and social sciences") %>% drop_na(Thesis)
+
+
+```
+
+## Term Frequencies
+
+```{r warning=FALSE, message = FALSE}
+
+library(tidyverse)
+library(tidytext)
+
+# clean titles 
+
+phd_shs <- phd_shs %>% 
+  mutate(title = str_replace_all(Thesis, "[:digit:]", "")) %>% 
+  mutate(title = str_remove(title, "^The")) %>% 
+  mutate(title = str_remove(title, "^A")) %>%
+  mutate(title = str_replace_all(title, "- ", " ")) %>% 
+  mutate(title = str_replace_all(title, "'s", "")) %>% 
+  mutate(title = str_replace_all(title, "\\, ", " ")) %>% 
+  mutate(title = str_replace_all(title, "China -", "China ")) %>% 
+  mutate(title = str_remove(title, "-$")) %>% # remove comma end of string 
+  mutate(title = str_remove(title, "\\.$")) %>% 
+  mutate(title = trimws(title, "both")) %>%  
+  mutate(title = str_squish(title)) %>% 
+  relocate(title, .after= Thesis) %>% mutate(published = str_extract(title, "Published"))%>% 
+  relocate(published, .after= title) 
+
+# tokenization (unigram)
+
+library(tidytext) 
+
+data("stop_words")
+
+shs_unigram <- phd_shs %>% 
+  unnest_tokens(output = word, input = title) %>% 
+  anti_join(stop_words)  # remove stop words 
+
+shs_unigram <- shs_unigram %>% mutate(lgth = nchar(word))
+
+shs_unigram_count <- shs_unigram %>% 
+  group_by(word) %>% 
+  tally() %>% 
+  arrange(desc(n))
+
+shs_unigram_count
+
+# tf_idf by disciplines
+
+shs_tf_idf_discipline <- shs_unigram %>% 
+  count(Discipline, word)  %>%
+  bind_tf_idf(word, Discipline, n) %>%
+  arrange(desc(tf_idf))
+
+shs_tf_idf_discipline %>% 
+  group_by(Discipline) %>%
+  top_n(10, tf_idf) %>%
+  ungroup() %>%
+  mutate(word = reorder(word, tf_idf)) %>%
+  ggplot(aes(tf_idf, word, fill = Discipline)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ Discipline, scales = "free") +
+  labs(x = "tf-idf", y = "word", 
+       title = "Highest tf-idf words in the dissertation titles", 
+       subtitle = "tf-idf by discipline", 
+       caption = "Source: Yuan, T’ung-li (1961, 1962)")
+
+# tf-idf by period 
+
+shs_tf_idf_period <- shs_unigram %>% filter(lgth >3) %>% 
+  filter(!word == "preface") %>% 
+  count(Degree_Period, word)  %>%
+  bind_tf_idf(word, Degree_Period, n) %>%
+  arrange(desc(tf_idf))
+
+shs_tf_idf_period %>% 
+  group_by(Degree_Period) %>%
+  top_n(10, tf_idf) %>%
+  ungroup() %>%
+  mutate(word = reorder(word, tf_idf)) %>%
+  ggplot(aes(tf_idf, word, fill = Degree_Period)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ Degree_Period, scales = "free") +
+  labs(x = "tf-idf", y = "word", 
+       title = "Highest tf-idf words in the dissertation titles", 
+       subtitle = "tf-idf by period", 
+       caption = "Source: Yuan, T’ung-li (1961, 1962)")
+
+
+# tf-idf by Region 
+
+shs_tf_idf_region <- shs_unigram %>%  
+  count(Region, word)  %>%
+  bind_tf_idf(word, Region, n) %>%
+  arrange(desc(tf_idf))
+
+shs_tf_idf_region %>% 
+  group_by(Region) %>%
+  top_n(10, tf_idf) %>%
+  ungroup() %>%
+  mutate(word = reorder(word, tf_idf)) %>%
+  ggplot(aes(tf_idf, word, fill = Region)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ Region, scales = "free") +
+  labs(x = "tf-idf", y = "word", 
+       title = "Highest tf-idf words in the dissertation titles", 
+       subtitle = "tf-idf by region", 
+       caption = "Source: Yuan, T’ung-li (1961, 1962)")
+
+
+```
+
+## Semantic Networks
+
+```{r warning=FALSE, message = FALSE}
+library(widyr) 
+
+word_pairs <- shs_unigram %>%
+  pairwise_count(word, RID, sort = TRUE) 
+
+word_pairs_filtered <- word_pairs %>% filter(!item1 == "study") %>% filter(!item2 == "study")
+
+set.seed(2024)
+
+library(igraph)
+library(tidygraph)
+library(ggraph)
+
+word_pairs_filtered %>%
+  filter(n > 5) %>%
+  graph_from_data_frame() %>%
+  ggraph(layout = "fr") +
+  geom_edge_link(aes(edge_alpha = n), show.legend = FALSE) +
+  geom_node_point(color = "orange", size = 5) +
+  geom_node_text(aes(label = name), repel = TRUE, point.padding  = unit(0.2, "lines")) +
+  theme_void()+
+  labs(title = "Word co-occurrences in dissertation titles", 
+       subtitle = "Most frequent pairs (n>5)", 
+       caption = "Source: Yuan, T’ung-li (1961, 1962)")
+```
+
+```{r warning=FALSE, message = FALSE, eval = FALSE}
+
+# Create a two-mode network linking titles and the words they contain 
+
+edge_2m <- shs_unigram %>% select(Thesis, word)
+node_title <- edge_2m %>% distinct(Thesis) %>% rename(Name = Thesis) %>% mutate(Type = "Title")
+node_word <- edge_2m %>% distinct(word) %>% rename(Name = word) %>% mutate(Type = "Word")
+node <- bind_rows(node_title, node_word)
+
+
+library(igraph)
+title_net <- graph_from_data_frame(edge_2m, directed = FALSE, vertices = node)
+
+
+# Community detection with Louvain
+
+set.seed(2025)
+title_net_cluster <- cluster_louvain(title_net)
+
+# Extract community membership 
+
+title_net_cluster_df <- data.frame(title_net_cluster$membership,
+                                   title_net_cluster$names) %>% 
+  group_by(title_net_cluster.membership) %>% 
+  add_tally() %>% # add size of clusters
+  rename(member = title_net_cluster.names, cluster = title_net_cluster.membership, size = n)
+
+## add node type and degree centrality
+
+node_type <- node %>% rename(member = Name)
+title_net_cluster_df <- left_join(title_net_cluster_df, node_type)
+
+degree <- degree(title_net, mode = "all", normalized = FALSE)
+degree_df <- as.data.frame(degree)
+degree_df <- rownames_to_column(degree_df, "member")
+
+title_net_cluster_df <- left_join(title_net_cluster_df, degree_df) 
+
+
+
+```
+
+```{r warning=FALSE, message = FALSE}
+
+# Plot the networks
+
+# Index node size on degree centrality 
+
+deg_cent <- degree(title_net, mode = "all", normalized = TRUE)
+V(title_net)$size <- deg_cent * 100 
+
+# Index node color on their type
+
+V(title_net)$color <- ifelse(V(title_net)$Type == "Title", "red", "orange")
+
+plot(title_net, 
+     vertex.size = V(title_net)$size,
+     vertex.color = V(title_net)$color,
+     vertex.label.color = "black",
+     vertex.label.cex = V(title_net)$size/10,
+     main = "Dissertation Title Network")
+
+# Plot the communities
+
+V(title_net)$group <- title_net_cluster$membership
+V(title_net)$color <- title_net_cluster$membership 
+
+plot(title_net_cluster, title_net, 
+     vertex.label=NA,
+     vertex.label.color = "black", 
+     vertex.label.cex = 0.5, 
+     vertex.size=1.8,
+     main="Semantic Communities", 
+     sub = "Louvain method")
+
+```
+
+## Biterm Topic Modeling
+
+```{r warning=FALSE, message = FALSE}
+
+library(BTM)
+
+x <- shs_unigram %>% filter(!word == "study") %>% 
+  select(RID, word)
+
+
+set.seed(2025)
+model10  <- BTM(x, k = 10, beta = 0.01, iter = 1000, trace = 100)
+model15  <- BTM(x, k = 15, beta = 0.01, iter = 1000, trace = 100)
+model20  <- BTM(x, k = 20, beta = 0.01, iter = 1000, trace = 100)
+model25  <- BTM(x, k = 25, beta = 0.01, iter = 1000, trace = 100)
+
+# Most frequent terms and scores for each model
+
+# model10$theta
+# terms(model10, top_n = 10)
+# topicterms10
+# scores <- predict(model10, newdata = x)
+# head(scores, 10)
+# hist(scores)
+
+
+# model20$theta
+# terms(model20)
+# model20 <- terms(model20, top_n = 10)
+# topicterms10
+# scores <- predict(model10, newdata = x)
+# head(scores, 10)
+# hist(scores)
+
+
+```
+
+```{r warning=FALSE, message = FALSE}
+
+# Most frequent terms for each model 
+
+library(BTM)
+
+## 10-topic model 
+terms(model10, top_n = 10)
+
+## 15-topic model 
+terms(model15, top_n = 10)
+
+## 20-topic model 
+terms(model20, top_n = 10)
+
+## 25-topic model 
+terms(model25, top_n = 10)
+
+```
+
+```{r warning=FALSE, message = FALSE}
+
+# Plot the topics
+
+library(BTM)
+library(textplot)
+library(ggraph)
+library(concaveman)
+
+plot(model10, top_n = 10, 
+     title = "Dissertation titles of Chinese PhDs abroad (1905-1962)'", 
+     subtitle = "Biterm topic model with 10 topics") 
+
+plot(model15, top_n = 10, 
+     title = "Dissertation titles of Chinese PhDs abroad (1905-1962)'", 
+     subtitle = "Biterm topic model with 15 topics") 
+
+plot(model20, top_n = 10, 
+     title = "Dissertation titles of Chinese PhDs abroad (1905-1962)'", 
+     subtitle = "Biterm topic model with 20 topics") 
+
+plot(model25, top_n = 10, 
+     title = "Dissertation titles of Chinese PhDs abroad (1905-1962)'", 
+     subtitle = "Biterm topic model with 25 topics") 
+
+```
+
+### By Region
+
+```{r warning=FALSE, message = FALSE}
+
+# Build Models 
+
+usa <- shs_unigram %>% filter(!word == "study") %>% 
+  filter(lgth >3 ) %>% filter(Region == "USA") %>% 
+  select(RID, word)
+uk <- shs_unigram %>% filter(!word == "study") %>% 
+  filter(lgth >3 ) %>%  filter(Region == "UK") %>% 
+  select(RID, word)
+eu <- shs_unigram %>% filter(!word == "study") %>%  
+filter(lgth >3 ) %>% filter(Region == "Europe") %>% 
+  select(RID, word)
+
+set.seed(321)
+model10us  <- BTM(usa, k = 10, beta = 0.01, iter = 1000, trace = 100)
+model15us  <- BTM(usa, k = 15, beta = 0.01, iter = 1000, trace = 100)
+model20us  <- BTM(usa, k = 20, beta = 0.01, iter = 1000, trace = 100)
+model25us  <- BTM(usa, k = 25, beta = 0.01, iter = 1000, trace = 100)
+
+model5uk  <- BTM(uk, k = 5, beta = 0.01, iter = 1000, trace = 100)
+model10uk  <- BTM(uk, k = 10, beta = 0.01, iter = 1000, trace = 100)
+model15uk  <- BTM(uk, k = 15, beta = 0.01, iter = 1000, trace = 100)
+
+model10eu  <- BTM(eu, k = 10, beta = 0.01, iter = 1000, trace = 100)
+model15eu  <- BTM(eu, k = 15, beta = 0.01, iter = 1000, trace = 100)
+model20eu  <- BTM(eu, k = 20, beta = 0.01, iter = 1000, trace = 100)
+
+
+```
+
+```{r warning=FALSE, message = FALSE}
+
+# Most frequent terms for each model 
+
+## U.S. theses models with 10, 20, and 25 topics
+terms(model10us)
+terms(model20us)
+terms(model25us)
+
+## UK theses models with 5 and 10 topics
+terms(model5uk)
+terms(model10uk)
+
+## Europe theses models with 10 and 20 topics
+terms(model10eu)
+terms(model20eu)
+```
+
+```{r warning=FALSE, message = FALSE}
+
+# Plot the topics
+
+plot(model10us, top_n = 8, 
+     title = "Dissertation titles of Chinese PhDs in the USA (1905-1962)'", 
+     subtitle = "Biterm topic model with 10 topics") 
+
+plot(model15us, top_n = 10, 
+     title = "Dissertation titles of Chinese PhDs in the USA (1905-1962)'", 
+     subtitle = "Biterm topic model with 15 topics") 
+
+plot(model20us, top_n = 8, 
+     title = "Dissertation titles of Chinese PhDs in the USA (1905-1962)'", 
+     subtitle = "Biterm topic model with 20 topics") 
+
+plot(model25us, top_n = 10, 
+     title = "Dissertation titles of Chinese PhDs in the USA (1905-1962)'", 
+     subtitle = "Biterm topic model with 25 topics") 
+
+plot(model5uk, top_n = 10, 
+     title = "Dissertation titles of Chinese PhDs in the UK (1905-1962)'", 
+     subtitle = "Biterm topic model with 5 topics") 
+
+plot(model10uk, top_n = 8, 
+     title = "Dissertation titles of Chinese PhDs in the UK (1905-1962)'", 
+     subtitle = "Biterm topic model with 10 topics") 
+
+plot(model15uk, top_n = 8, 
+     title = "Dissertation titles of Chinese PhDs in the UK (1905-1962)'", 
+     subtitle = "Biterm topic model with 15 topics") 
+
+plot(model10eu, top_n = 10, 
+     title = "Dissertation titles of Chinese PhDs in Europe (1905-1962)'", 
+     subtitle = "Biterm topic model with 10 topics") 
+
+plot(model15eu, top_n = 10, 
+     title = "Dissertation titles of Chinese PhDs in Europe (1905-1962)'", 
+     subtitle = "Biterm topic model with 15 topics") 
+
+plot(model20eu, top_n = 10, 
+     title = "Dissertation titles of Chinese PhDs in Europe (1905-1962)'", 
+     subtitle = "Biterm topic model with 20 topics") 
+
+```
+
+### By Period
+
+```{r warning=FALSE, message = FALSE}
+
+p1 <- shs_unigram %>% filter(!word == "study") %>% 
+  filter(lgth >3 ) %>% filter(Degree_Period == "1905-1926") %>% 
+  select(RID, word)
+p2 <- shs_unigram %>% filter(!word == "study") %>% 
+  filter(lgth >3 ) %>% filter(Degree_Period == "1927-1937") %>% 
+  select(RID, word)
+p3 <- shs_unigram %>% filter(!word == "study") %>% 
+  filter(lgth >3 ) %>% filter(Degree_Period == "1938-1951") %>% 
+  select(RID, word)
+p4 <- shs_unigram %>% filter(!word == "study") %>% 
+  filter(lgth >3 ) %>% filter(Degree_Period == "1952-1962") %>% 
+  select(RID, word)
+
+
+model10p1  <- BTM(p1, k = 10, beta = 0.01, iter = 1000, trace = 100)
+model10p2  <- BTM(p2, k = 10, beta = 0.01, iter = 1000, trace = 100)
+model10p3  <- BTM(p3, k = 10, beta = 0.01, iter = 1000, trace = 100)
+model10p4  <- BTM(p4, k = 10, beta = 0.01, iter = 1000, trace = 100)
+
+
+```
+
+```{r warning=FALSE, message = FALSE}
+
+# Most frequent terms for each period
+
+# 1905-1926
+terms(model10p1, top_n = 10)
+
+# 1927-1937
+terms(model10p2, top_n = 10)
+
+# 1938-1951
+terms(model10p2, top_n = 10)
+
+# 1952-1962
+terms(model10p2, top_n = 10)
+
+```
+
+```{r warning=FALSE, message = FALSE}
+
+# Plot the topics
+
+plot(model10p1, top_n = 10, 
+     title = "Dissertation titles of Chinese PhDs abroad (1905-1926)", 
+     subtitle = "Biterm topic model with 10 topics") 
+
+plot(model10p2, top_n = 8, 
+     title = "Dissertation titles of Chinese PhDs abroad (1927-1937)", 
+     subtitle = "Biterm topic model with 10 topics") 
+
+plot(model10p3, top_n = 10, 
+     title = "Dissertation titles of Chinese PhDs abroad (1938-1951)", 
+     subtitle = "Biterm topic model with 10 topics") 
+
+plot(model10p4, top_n = 10, 
+     title = "Dissertation titles of Chinese PhDs abroad (1952-1962)", 
+     subtitle = "Biterm topic model with 10 topics") 
+
+
+```
+
+## Named Entity Recognition
+
+Extract named entities (persons, locations/GPE, organizations, events) from titles to identify China-focused theses:
+
+```{r warning=FALSE, message = FALSE, eval = FALSE}
+
+library(histtext)
+
+phd_all_master_ner <- phd_all_master %>% drop_na(Thesis)
+phd_all_master_ner <- ner_on_df(phd_all_master_ner, text_column = "Thesis", id_column = "RID") 
+
+phd_all_master_ner %>% group_by(Type) %>% count(sort = TRUE)
+
+```
+
+<br> A total of 2885 named entities were found, distributed as follows:
+
+```{r warning=FALSE, message = FALSE}
+
+phd_all_master_ner %>% group_by(Type) %>% count(sort = TRUE)
+
+```
+
+<br> The named entities were curated and manually coded using a combination of R (tidyverse) and Excel to classify the entities and identify those related to China and Chinese issues. The resulting dataset was used for statistical analyses of individual entity types and served as a basis for analyzing China-centered theses.
+
+### Locations/GPE
+
+```{r warning = FALSE, message = FALSE, eval = FALSE}
+
+# upload clean list of locations/GPE
+
+library(readr)
+phd_loc_clean_meta <- read_delim("Data/phd_loc_clean_meta.csv", 
+    delim = ";", escape_double = FALSE, trim_ws = TRUE)
+
+```
+
+```{r warning=FALSE, message = FALSE}
+
+phd_loc_clean_meta %>% group_by(Place) %>% count(sort = TRUE)
+
+```
+
+### Events
+
+```{r warning = FALSE, message = FALSE, eval = FALSE}
+
+# upload clean list of events
+
+library(readr)
+phd_event_clean_meta <- read_delim("Data/phd_event_clean_meta.csv", 
+    delim = ";", escape_double = FALSE, trim_ws = TRUE)
+
+```
+
+```{r warning=FALSE, message = FALSE}
+
+phd_event_clean_meta %>% group_by(EventType) %>% count(sort = TRUE)
+phd_event_clean_meta %>% group_by(Event2) %>% count(sort = TRUE)
+
+```
+
+### Organizations
+
+```{r warning = FALSE, message = FALSE, eval = FALSE}
+
+# upload clean list of organizations
+
+library(readr)
+phd_org_clean_meta <- read_delim("Data/phd_org_clean_meta.csv", 
+    delim = ";", escape_double = FALSE, trim_ws = TRUE)
+
+```
+
+```{r warning=FALSE, message = FALSE}
+
+phd_org_clean_meta %>% group_by(Text_clean2) %>% count(sort = TRUE)
+phd_org_clean_meta %>% group_by(type2) %>% count(sort = TRUE)
+phd_org_clean_meta %>% group_by(country) %>% count(sort = TRUE)
+
+```
+
+### Persons
+
+```{r warning = FALSE, message = FALSE, eval = FALSE}
+
+# upload clean list of persons
+
+library(readr)
+phd_pers_clean_meta <- read_delim("Data/phd_pers_clean_meta.csv", 
+    delim = ";", escape_double = FALSE, trim_ws = TRUE)
+
+```
+
+```{r warning=FALSE, message = FALSE}
+
+phd_pers_clean_meta %>% group_by(Text_clean2) %>% count(sort = TRUE)
+
+```
+
+## China-Centered Theses
+
+```{r warning = FALSE, message = FALSE, eval = FALSE}
+
+# upload compiled list of china-centered theses
+
+library(readr)
+china_theses_all <- read_delim("Data/china_theses_all.csv", 
+    delim = ";", escape_double = FALSE, trim_ws = TRUE)
+
+```
+
+```{r warning=FALSE, message = FALSE}
+
+names(china_theses_all)
+
+```
+
+<br> The dataset of China-centered theses includes the following information: a unique dissertation identifier (RID); region and country of graduation (Region, Country); discipline and field of study (Discipline, Field); year of graduation (Degree_Year); dissertation title in both its original language and translated form (Title_Src, Thesis); and the total number of dissertations within each discipline and field (totalDisc, totalField), which is used for statistical computations.
+
+### Disciplines
+
+```{r warning=FALSE, message = FALSE}
+
+china_theses_all %>% group_by(Field) %>% count(sort = TRUE)
+china_theses_all %>% group_by(Discipline) %>% count(sort = TRUE)
+
+# Proportion 
+
+china_theses_fields <- china_theses_all %>% group_by(Field, totalField) %>% count()
+china_theses_fields <- china_theses_fields %>% mutate(percent = round(n/totalField*100, 2))
+china_theses_fields %>% arrange(desc(n))
+
+china_theses_disciplines <- china_theses_all %>% group_by(Discipline, totalDisc) %>% count()
+china_theses_disciplines <- china_theses_disciplines %>% mutate(percent = round(n/totalDisc*100, 2))
+china_theses_disciplines %>% arrange(desc(n))
+china_theses_disciplines %>% arrange(desc(percent))
+
+```
+
+<br> 849 dissertations in the Humanities and Social Sciences focused on China, out of 1622, i.e. 52.3%. The disciplines that were most likely to focus on China issues in absolute numbers are economics, education, and international law and relations, but in proportion, history, sociology, and anthropology are the most concerned with China.
+
+### Time Distribution
+
+```{r warning=FALSE, message = FALSE}
+
+library(hrbrthemes)
+library(viridis)
+
+# All Disciplines 
+
+china_theses_all %>% 
+  ggplot( aes(x=Degree_Year)) +
+  geom_histogram( binwidth=1, fill="#69b3a2", color="#e9ecef", alpha=0.9) +
+  ggtitle("Bin size = 1") +
+  theme_ipsum() +
+  theme(
+    plot.title = element_text(size=15)
+  ) +
+  labs(title = "China-focused theses",
+       x = "Year",
+       y = "Frequency", 
+       caption = "Source: Yuan, T’ung-li")
+
+# Humanities and Social Sciences 
+
+china_theses_all %>% 
+  filter(Field == "Humanities and social sciences") %>% 
+  ggplot( aes(x=Degree_Year)) +
+  geom_histogram( binwidth=1, fill="#69b3a2", color="#e9ecef", alpha=0.9) +
+  ggtitle("Bin size = 1") +
+  theme_ipsum() +
+  theme(
+    plot.title = element_text(size=15)
+  ) +
+  labs(title = "China-focused theses (Humanities & Social Sciences)",
+       x = "Year",
+       y = "Frequency", 
+       caption = "Source: Yuan, T’ung-li")
+
+
+# Comparative Trend
+
+shs_all <- phd_all_master %>% filter(Field == "Humanities and social sciences") %>% group_by(Degree_Year) %>% count() %>% rename(TotalTheses = n)
+shs_china  <- china_theses_all %>% filter(Field == "Humanities and social sciences") %>% group_by(Degree_Year) %>% count() %>% rename(ChinaTheses = n)
+theses_year <- left_join(shs_all, shs_china)
+
+theses_year <- theses_year %>%
+  mutate(ChinaTheses = ifelse(is.na(ChinaTheses), 0, ChinaTheses))
+
+theses_year <- theses_year %>% drop_na(Degree_Year)
+theses_year <- theses_year %>% mutate(ratio = round(ChinaTheses/TotalTheses, 2))
+
+ggplot(theses_year, aes(x = Degree_Year)) +
+  geom_line(aes(y = ChinaTheses, color = "ChinaTheses"), size = 1) +
+  geom_line(aes(y = TotalTheses, color = "TotalTheses"), size = 1) +
+  labs(title = "Comparative Trend (Humanities & Social Sciences Only)",
+       x = "Year",
+       y = "Frequency") +
+  scale_color_manual(name = "Legend",
+                     values = c("ChinaTheses" = "red", "TotalTheses" = "steelblue"),
+                     labels = c("ChinaTheses" = "China-centered", "TotalTheses" = "All Theses (HSS)")) +
+  theme_minimal()
+
+
+```
+
+# Conclusion
+
+This first document has focused on the doctoral dissertations themselves, remaining within the confines of a single data source: the original dissertation catalog compiled by Yuan Tongli. In the next documents, we will shift our attention to the authors of these dissertations—who were the Chinese PhDs, what were their backgrounds, and what trajectories did they follow after graduation — drawing on external datasets, including the Chinese University Students' Datasets (CSUD-OS) compiled by the [Lee-Campbell Research Group](https://leecampbellgroup.blog/), as well as biographical entries from web-based knowledge platforms such as Wikipedia and Baidu.
+
+# References 
+
+
+* **Yuan, T’ung-li**
+  *A Guide to Doctoral Dissertations by Chinese Students in America, 1905–1960*
+  Washington, D.C.: Published under the auspices of the Sino-American Cultural Society, 1961.
+
+* **Yuan, T’ung-li**
+  *Doctoral Dissertations by Chinese Students in Great Britain and Northern Ireland, 1916–1961*
+  Taipei: Chinese Cultural Research Institute, 1963.
+
+* **Yuan, T’ung-li**
+  *A Guide to Doctoral Dissertations by Chinese Students in Continental Europe, 1907–1962*
+  Taipei: Chinese Culture Quarterly Review, 1964.

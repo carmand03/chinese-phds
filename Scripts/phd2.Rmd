@@ -1,0 +1,493 @@
+---
+title: "Chinese PhDs in the United States, Europe, and United Kingdom (1905-1962)"
+subtitle: "Episode 2: Tracing Chinese Doctors' Backgrounds"
+author: "Cécile Armand, Christian Henriot"
+date: "`r lubridate::today()`"
+tags: [biography, catalog, doctoral dissertation, correspondance analysis, geographical information system]  
+abstract: |
+  This document is part of a series of three scripts developed to support a comprehensive study of early Chinese PhDs from 1905 to 1962. The study is based on a dataset derived from three catalogs of Chinese doctoral dissertations compiled by the librarian and bibliographer Yuan Tongli 袁同禮 (1895–1965), which cover the United States (1905–1960), the United Kingdom (1916–1961), and Continental Europe (1905–1962). Following the first script, which focuses on the dissertations themselves, this second script analyzes the social and educational backgrounds of their authors.     
+  
+  <style>
+    body {
+    text-align: justify}
+  </style>
+    
+
+output: 
+  html_document:
+    toc: true
+    toc_float: 
+      collapsed: false
+      smooth_scroll: false
+    toc_depth: 3
+    number_sections: false
+    code_folding: show # hide
+    fig_caption: true
+    df_print: paged
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(readr)
+library(tidyverse)
+library(hrbrthemes)
+library(viridis)
+library(FactoMineR)
+library(Factoshiny)
+library(networkD3)
+
+```
+
+```{r echo = FALSE}
+
+load(file = "phd2.RData")
+
+```
+
+# Introduction
+
+This second script aims to analyze the background of Chinese PhDs using external data — specifically, the [China University Student Dataset (CUSD)](https://leecampbellgroup.blog/projects/china-university-student-dataset-cusd-project/) compiled by the Lee-Campbell Research Group. This comprehensive dataset offers detailed information on the social and geographic family backgrounds of nearly 300,000 Chinese students who enrolled in Chinese universities during the late Qing and Republican periods. It includes critical information not provided in the original dissertation catalogs—most notably, students’ place and date of birth, gender, and the educational institutions they attended both in China and abroad. Since the dataset is not yet publicly available, we provide only the subset resulting from the match with our initial dataset of Chinese PhDs.
+
+# Sub-Dataset 
+
+Of the 4,683 individuals in the main dataset, 3,716 (79.4%) were successfully matched with entries in the CUSDOS dataset. Match coverage was highest for those who studied in the United States (83.4%), followed closely by the United Kingdom (83.2%) and Europe (71.3%).
+
+
+```{r warning = FALSE, message = FALSE, eval = FALSE}
+
+# load dataset 
+
+library(readr)
+phd_cus_all <- read_delim("Data/phd_cus_all.csv", 
+    delim = ";", escape_double = FALSE, trim_ws = TRUE)
+
+```
+
+```{r warning = FALSE, message = FALSE}
+
+library(tidyverse)
+phd_cus_all %>% group_by(Region) %>% count(sort = TRUE)
+  
+```
+
+
+<style type="text/css">
+.tg  {border-collapse:collapse;border-color:#93a1a1;border-spacing:0; margin-left:auto; margin-right:auto;}
+.tg td{background-color:#fdf6e3;border-color:#93a1a1;border-style:solid;border-width:1px;color:#002b36;
+  font-family:Arial, sans-serif;font-size:14px;overflow:hidden;padding:10px 5px;word-break:normal;}
+.tg th{background-color:#657b83;border-color:#93a1a1;border-style:solid;border-width:1px;color:#fdf6e3;
+  font-family:Arial, sans-serif;font-size:14px;font-weight:normal;overflow:hidden;padding:10px 5px;word-break:normal;}
+.tg .tg-j6zm{font-weight:bold;text-align:left;vertical-align:bottom}
+.tg .tg-8d8j{text-align:center;vertical-align:bottom}
+</style>
+
+<div style="text-align:center;">
+<table class="tg">
+<thead>
+  <tr>
+    <th class="tg-j6zm"></th>
+    <th class="tg-j6zm">Matched in CUSD-OS</th>
+    <th class="tg-j6zm">(%)</th>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td class="tg-j6zm">USA</td>
+    <td class="tg-8d8j">2,315</td>
+    <td class="tg-8d8j">83.4%</td>
+  </tr>
+  <tr>
+    <td class="tg-j6zm">Europe</td>
+    <td class="tg-8d8j">1,113</td>
+    <td class="tg-8d8j">71.3%</td>
+  </tr>
+  <tr>
+    <td class="tg-j6zm">UK</td>
+    <td class="tg-8d8j">288</td>
+    <td class="tg-8d8j">83.2%</td>
+  </tr>
+  <tr>
+    <td class="tg-j6zm" rowspan="2">Total</td>
+    <td class="tg-8d8j" rowspan="2">3,716</td>
+    <td class="tg-8d8j" rowspan="2">79.4%</td>
+  </tr>
+  <tr></tr>
+</tbody>
+</table>
+</div>
+
+<br>
+It is important to note that biographical information—such as gender and provincial origin—is not systematically available. As a result, even when a Chinese PhD was successfully matched with a corresponding record in the CUSD, their biographical data may still be incomplete. 
+
+```{r warning = FALSE, message = FALSE}
+
+colSums(is.na(phd_cus_all))
+sapply(phd_cus_all, function(x) sum(is.na(x)) / length(x) * 100)
+
+```
+<br>
+As shown above, gender information is missing for approximately 39% of individuals, the province of birth is unreported in 81% of cases, and the university previously attended in China is unknown for over 83% of the sample. Information regarding gender, geographical origin, and previous university attended in China is available for 359 individuals, representing less than 10% of the initial population: 
+
+```{r warning = FALSE, message = FALSE}
+
+phd_cus_complete <- phd_cus_all[complete.cases(phd_cus_all[, c("cus_Gender", "cus_Birth_Prov_ZhT", "cus_Univ_China_Orig")]), ]
+
+phd_cus_complete
+
+```
+<br>
+Nevertheless, we have obtained valuable information about the PhD holders that was not available in the original dissertation catalog.
+
+# Gender 
+
+```{r warning = FALSE, message = FALSE}
+
+phd_all_master %>% group_by(Sex) %>% count(sort = TRUE)
+phd_all_master %>% group_by(Region, Sex) %>% count() # by Region
+
+```
+
+
+# Generation
+
+Birth year data is available for a limited number of cases, primarily for PhDs awarded in the United States. The CUSD-OS dataset contributes additional birth years for just over 2,600 PhDs. To address remaining gaps, we calculated the average age at graduation based on known cases. Although there were some variations—particularly among the earliest PhDs, whose ages at graduation ranged from their early 20s to over 50—a general trend toward convergence and standardization is evident over time. Most individuals completed their degrees between the ages of 28 and 34. 
+
+## Year of Birth
+```{r warning = FALSE, message = FALSE}
+
+phd_all_master %>% group_by(Birth_year_corr) %>% count(sort = TRUE)
+
+phd_all_master %>% drop_na(Birth_year_corr) %>% 
+  ggplot( aes(x=Birth_year_corr)) +
+  geom_histogram( binwidth=1, fill="#69b3a2", color="#e9ecef", alpha=0.9) +
+  ggtitle("Bin size = 1") +
+  theme_ipsum() +
+  theme(
+    plot.title = element_text(size=15)
+  ) +
+  labs(title = "Chinese PhDs Abroad (1905-1962)",
+       subtitle = "Year of Birth",
+       x = "Year",
+       y = "Frequency", 
+       caption = "Based on Yuan T'ung-li's Guides to Doctoral Dissertations (1961, 1962, 1964)")
+
+```
+
+```{r warning = FALSE, message = FALSE}
+
+
+# Reshape and convert
+generation <- gather(phd_all_master, key = "Event", value = "Year", Birth_year_corr, Degree_Year, Death_year) %>% 
+  drop_na(Year) %>% 
+  mutate(Year = as.numeric(Year),
+         Event = factor(Event, levels = c("Birth_year_corr", "Degree_Year", "Death_year")))
+
+# Plot
+ggplot(generation, aes(x = Year , fill = Event)) +
+  geom_histogram(position = "identity", alpha = 0.8, bins = 30) +
+  labs(title = "Chinese PhDs in the US (1905-1962)",
+       subtitle = "Birth, Graduation, and Death Year", 
+       x = "Year",
+       y = "Frequency", 
+       caption = "Based on Yuan T'ung-li's Guides to Doctoral Dissertations") +
+  scale_fill_manual(
+    values = c("Birth_year_corr" = "light green", "Degree_Year" = "steelblue", "Death_year" = "red"),
+    labels = c("Birth", "Graduation", "Death")
+  ) +
+  theme_minimal() + 
+  theme(legend.position = "bottom")
+
+
+
+```
+
+
+## Age at Graduation
+
+```{r warning = FALSE, message = FALSE}
+
+phd_all_master %>% filter(!Birth_year_corr == "NA") %>% group_by(Age_Grad)  %>% count() %>% 
+  ggplot(aes(Age_Grad, n)) + geom_col(alpha = 0.8) + geom_smooth(span = .25) + 
+  labs(title = "Chinese PhDs Abroad (1905-1962)",
+       subtitle = "Age at graduation",
+       x = "Age", 
+       y = "Frequency", 
+       caption = "Based on Yuan Tongli's Guides to Doctoral Dissertations")
+
+```
+
+```{r warning = FALSE, message = FALSE}
+
+ggplot(phd_all_master, aes(x=Birth_year_corr, y=Age_Grad) ) +
+  geom_hex(bins = 35) +
+  scale_fill_continuous(type = "viridis") +
+  theme_bw() + 
+  labs(title = "Chinese PhDs Abroad (1905-1962)",
+       subtitle = "Age at graduation in relation to generation",
+       x = "Year of birth", 
+       y = "Age", 
+       caption = "Based on Yuan Tongli's Guides to Doctoral Dissertations")
+
+```
+
+# Birth Place
+
+```{r warning = FALSE, message = FALSE}
+
+phd_cus_all %>% group_by(cus_Birth_Prov_ZhT) %>% drop_na(cus_Birth_Prov_ZhT) %>% 
+  count(sort = TRUE) %>% 
+  mutate(percent = round(n/709*100, 2))
+
+```
+
+## By Region of Education
+```{r warning = FALSE, message = FALSE}
+ 
+## USA
+phd_cus_USA_match %>% group_by(cus_Birth_Prov_ZhT) %>% count(sort = TRUE) %>% mutate(percent = round(n/2315*100, 2))
+
+## United Kingdom
+phd_cus_UK_match %>% group_by(cus_Birth_Prov_ZhT) %>% count(sort = TRUE) %>% mutate(percent = round(n/288*100, 2))
+
+## Europe
+phd_cus_EUR_match %>% group_by(cus_Birth_Prov_ZhT) %>% count(sort = TRUE) %>% mutate(percent = round(n/1113*100, 2))
+
+```
+
+
+## Flow Charts
+
+```{r warning = FALSE, message = FALSE}
+
+# load package
+library(networkD3)
+
+# select variables 
+
+birth_region <- phd_cus_all %>% select(cus_Birth_Prov_ZhT, Region) %>% na.omit()
+
+
+# create links and compute weight 
+
+birth_region_link <- birth_region %>% 
+  rename(source = cus_Birth_Prov_ZhT, target = Region) %>% 
+  group_by(source, target) %>% 
+  count() %>% 
+  rename(value = "n")
+
+# create nodes 
+
+birth_region_node <- data.frame(
+  name=c(as.character(birth_region_link$source), 
+         as.character(birth_region_link$target)) %>% unique()
+)
+
+
+# Plot 
+
+birth_region_link$IDsource <- match(birth_region_link$source, birth_region_node$name)-1 
+birth_region_link$IDtarget <- match(birth_region_link$target, birth_region_node$name)-1
+
+# Make the Network
+p1 <- sankeyNetwork(Links = birth_region_link, Nodes = birth_region_node,
+                   Source = "IDsource", Target = "IDtarget",
+                   Value = "value", NodeID = "name", 
+                   fontSize = 14, 
+                   fontFamily = "Arial", 
+                   nodeWidth = 30,
+                   sinksRight=FALSE)
+p1
+
+
+```
+
+
+# Prior Education in China
+
+```{r warning = FALSE, message = FALSE}
+
+phd_cus_all %>% drop_na(cus_Univ_China_ZhT) %>% 
+  group_by(cus_Univ_China_ZhT) %>%
+  count(sort = TRUE) %>% 
+  mutate(percent = round(n/709*100, 2))
+
+```
+
+## By Region of Education
+
+```{r warning = FALSE, message = FALSE}
+
+## USA
+phd_cus_USA_match %>% drop_na(cus_Univ_China_ZhT) %>% group_by(cus_Univ_China_ZhT) %>% count(sort = TRUE) %>% mutate(percent = round(n/2315*100, 2))
+
+## United Kingdom
+phd_cus_UK_match %>% drop_na(cus_Univ_China_ZhT) %>% group_by(cus_Univ_China_ZhT) %>% count(sort = TRUE) %>% mutate(percent = round(n/288*100, 2))
+
+## Europe
+phd_cus_EUR_match %>% drop_na(cus_Univ_China_ZhT) %>% group_by(cus_Univ_China_ZhT) %>% count(sort = TRUE) %>% mutate(percent = round(n/1113*100, 2))
+
+```
+
+## Flow Charts
+
+### USA 
+
+```{r warning = FALSE, message = FALSE}
+
+# select variables 
+
+china_us <- phd_cus_USA_match %>% select(cus_Univ_China_ZhT, cus_Univ_Eng) %>% na.omit()
+  
+# create links and compute weight 
+
+china_us_link <- china_us %>% 
+  rename(source = cus_Univ_China_ZhT, target = cus_Univ_Eng) %>% 
+           group_by(source, target) %>% 
+           count() %>% 
+           rename(value = "n")
+
+
+china_us_link <- china_us_link %>% filter(value > 1)
+
+# create nodes 
+
+china_us_node <- data.frame(
+  name=c(as.character(china_us_link$source), 
+         as.character(china_us_link$target)) %>% unique()
+)
+
+
+# plot 
+
+china_us_link$IDsource <- match(china_us_link$source, china_us_node$name)-1 
+china_us_link$IDtarget <- match(china_us_link$target, china_us_node$name)-1
+
+# Make the Network
+p2 <- sankeyNetwork(Links = china_us_link, Nodes = china_us_node,
+                    Source = "IDsource", Target = "IDtarget",
+                    Value = "value", NodeID = "name", 
+                    fontSize = 14, 
+                    fontFamily = "Arial", 
+                    nodeWidth = 30,
+                    sinksRight=FALSE)
+p2
+
+```
+
+### Europe 
+
+```{r warning = FALSE, message = FALSE}
+
+# select variables 
+
+china_europe <- phd_cus_EUR_match %>% select(cus_Univ_China_ZhT, cus_Univ_Eng) %>% na.omit()
+  
+# create links and compute weight 
+
+china_europe_link <- china_europe %>% 
+  rename(source = cus_Univ_China_ZhT, target = cus_Univ_Eng) %>% 
+           group_by(source, target) %>% 
+           count() %>% 
+           rename(value = "n")
+
+
+# create nodes 
+
+china_europe_node <- data.frame(
+  name=c(as.character(china_europe_link$source), 
+         as.character(china_europe_link$target)) %>% unique()
+)
+
+
+# plot 
+
+china_europe_link$IDsource <- match(china_europe_link$source, china_europe_node$name)-1 
+china_europe_link$IDtarget <- match(china_europe_link$target, china_europe_node$name)-1
+
+# Make the Network
+p3 <- sankeyNetwork(Links = china_europe_link, Nodes = china_europe_node,
+                    Source = "IDsource", Target = "IDtarget",
+                    Value = "value", NodeID = "name", 
+                    fontSize = 14, 
+                    fontFamily = "Arial", 
+                    nodeWidth = 30,
+                    sinksRight=FALSE)
+p3
+
+```
+
+### United Kingdom
+
+```{r warning = FALSE, message = FALSE}
+
+# select variables 
+
+china_uk <- phd_cus_UK_match %>% select(cus_Univ_China_ZhT, cus_Univ_Eng) %>% na.omit()
+  
+# create links and compute weight 
+
+china_uk_link <- china_uk %>% 
+  rename(source = cus_Univ_China_ZhT, target = cus_Univ_Eng) %>% 
+           group_by(source, target) %>% 
+           count() %>% 
+           rename(value = "n")
+
+# create nodes 
+
+china_uk_node <- data.frame(
+  name=c(as.character(china_uk_link$source), 
+         as.character(china_uk_link$target)) %>% unique()
+)
+
+
+# plot 
+
+china_uk_link$IDsource <- match(china_uk_link$source, china_uk_node$name)-1 
+china_uk_link$IDtarget <- match(china_uk_link$target, china_uk_node$name)-1
+
+# Make the Network
+p4 <- sankeyNetwork(Links = china_uk_link, Nodes = china_uk_node,
+                    Source = "IDsource", Target = "IDtarget",
+                    Value = "value", NodeID = "name", 
+                    fontSize = 14, 
+                    fontFamily = "Arial", 
+                    nodeWidth = 30,
+                    sinksRight=FALSE)
+p4
+
+```
+
+# Conclusion 
+
+In the third and final script, we will attempt to trace the post-graduation careers of Chinese PhDs using external data from web sources such as Wikipedia and Baidu. 
+
+# Acknowledgement 
+
+We extend our sincere gratitude to the Lee-Campbell Research Group for generously sharing their datasets prior to their publication.
+
+# References 
+
+* **Chen, Liang 梁晨, Yunzhu Ren 任韵竹, and Zhongqing Li 李中清**
+  *Qishanlinzhe: Zhongguo Xiandai Zhishi Jieceng de Xingcheng yu Tezheng Yanjiu 启山林者：中国现代知识阶层的形成与特征研究，1912–1952*
+  *(The Enlightenment of the Mountains and Forests: A Study on the Formation and Characteristics of China’s Modern Intellectual Class)*
+  *Forthcoming.*
+
+* **Liang Chen, Zhang Hao, Li Lan, Ruan Danqing, Cameron Campbell, and James Lee**
+  *Wusheng de Geming: Beijing Daxue, Suzhou Daxue de Xuesheng Shehui Laiyuan*
+  《无声的革命: 北京大学、苏州大学的学生社会来源 1949–2002》
+  *(Silent Revolution: The Social Origins of Peking University and Soochow University Undergraduates, 1949–2002)*
+  Beijing: Beijing Joint Publishing, 2013.
+
+* **Yuan, T’ung-li**
+  *A Guide to Doctoral Dissertations by Chinese Students in America, 1905–1960*
+  Washington, D.C.: Published under the auspices of the Sino-American Cultural Society, 1961.
+
+* **Yuan, T’ung-li**
+  *Doctoral Dissertations by Chinese Students in Great Britain and Northern Ireland, 1916–1961*
+  Taipei: Chinese Cultural Research Institute, 1963.
+
+* **Yuan, T’ung-li**
+  *A Guide to Doctoral Dissertations by Chinese Students in Continental Europe, 1907–1962*
+  Taipei: Chinese Culture Quarterly Review, 1964.
+
+
