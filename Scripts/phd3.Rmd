@@ -1052,6 +1052,15 @@ plot.MCA(res.MCA,invisible= 'ind',selectMod= 'cos2 0.05',col.var=c(1,1,1,1,1,1,2
 
 
 
+```{r message = FALSE, warning = FALSE}
+
+# Statistical Summary 
+
+dimdesc(res.MCA)
+summary(res.MCA)
+```
+
+
 # Conclusion
 
 As evidenced by this documentation trilogy, our research adopted a mixed-methods approach, integrating a wide range of techniques. These included established data analysis and visualization tools such as Geographic Information Systems (GIS) and Multiple Correspondence Analysis (MCA); conventional Natural Language Processing (NLP) methods for tasks such as Named Entity Recognition (NER), regular expressions, and topic modeling; and more innovative generative-conversational AI tools for the nuanced extraction of fine-grained information from unstructured texts. All methods were reinforced and critically validated through close reading of individual biographies and the contextual incorporation of domain knowledge and relevant scholarly literature.
