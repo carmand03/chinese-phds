@@ -25,3 +25,6 @@ The data and scripts folders each contain three sets of files corresponding to t
   - (1) Analysis of [dissertations](https://bookdown.enpchina.eu/YTL_phds/phd1.html),
   - (2) Analysis of [PhD backgrounds](https://bookdown.enpchina.eu/YTL_phds/phd2.html),
   - (3) Analysis of [post-graduation careers and post-1949 fate](https://bookdown.enpchina.eu/YTL_phds/phd3.html).
+
+# Acknowledgements
+This research was funded by the European Research Council (ERC) under the European Union’s Horizon 2020 Research and Innovation Programme (Grant Agreement No. 788476) and by the Chiang Ching-kuo Foundation for International Scholarly Exchange (Project No. RG004-U-21). The authors also wish to express their gratitude to the Lee–Campbell Research Group for generously sharing their datasets.
