@@ -28,3 +28,6 @@ The data and scripts folders each contain three sets of files corresponding to t
 
 # Acknowledgements
 This research was funded by the European Research Council (ERC) under the European Union’s Horizon 2020 Research and Innovation Programme (Grant Agreement No. 788476) and by the Chiang Ching-kuo Foundation for International Scholarly Exchange (Project No. RG004-U-21). The authors also wish to express their gratitude to the Lee–Campbell Research Group for generously sharing their datasets.
+
+# Dataset
+The original dataset is also available on Zenodo: Armand, C., & Henriot, C. (2026). Chinese Doctoral Dissertations Abroad (1905–1962): A Dataset Derived from Yuan Tongli's Guides (1.0) [Data set]. Zenodo. [https://doi.org/10.5281/zenodo.20135691](https://doi.org/10.5281/zenodo.20135691) 
